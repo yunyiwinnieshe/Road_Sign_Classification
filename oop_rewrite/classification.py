@@ -70,6 +70,9 @@ class Setup:
                                        is_transforms=True)
         self.__show_corner_bb(im, bb)
 
+    def transforms(self, path, bb, is_transforms):
+        return self.__transformsXY(path, bb, is_transforms)
+
     def __read_image(self, path):
         return cv2.cvtColor(cv2.imread(str(path)), cv2.COLOR_BGR2RGB)
 
@@ -171,6 +174,74 @@ class Setup:
     def __show_corner_bb(self, im, bb):
         plt.imshow(im)
         plt.gca().add_patch(self.__create_corner_rect(bb))
+
+
+class RoadData(Dataset):
+    def __init__(self, paths, bb, y, s: Setup, is_transforms=False):
+        self.paths = paths.values
+        self.y = y.values
+        self.bb = bb.values
+        self.is_transforms = is_transforms
+        self.setup = s
+
+    def __len__(self):
+        return len(self.paths)
+
+    def __getitem__(self, key):
+        path = self.paths[key]
+        y_class = self.y[key]
+        x, y_bb = self.setup.transforms(path, self.bb[key], self.is_transforms)
+        x = self.__normalize(x)
+        x = np.rollaxis(x, 2)
+        return x, y_class, y_bb
+
+    def __normalize(self, image):
+        stats = np.array([[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]])
+        return (image - stats[0]) / stats[1]
+
+
+class RoadModel(nn.Module):
+    def __init__(self, trial, num_conv_layers, num_filters, num_neurons, drop_conv2, drop_fc1):
+        super(RoadModel, self).__init__()
+        in_size = 300       # image input size (300 pixels)
+        kernel_size = 5     # convolution filter size
+
+        self.convs = nn.ModuleList([nn.Conv2d(3, num_filters[0], kernel_size=(5, 5))])
+        out_size = in_size - kernel_size + 1    # output kernel size
+        out_size = int(out_size / 2)    # after pooling
+
+        for i in range(1, num_conv_layers):
+            self.convs.append(nn.Conv2d(in_channels=num_filters[i-1], out_channels=num_filters[i], kernel_size=(5, 5)))
+            out_size = out_size - kernel_size + 1
+            out_size = int(out_size / 2)
+
+        self.conv2_drop = nn.Dropout2d(p=drop_conv2)        # dropout for conv2
+        self.out_feature = num_filters[num_conv_layers-1] * out_size * out_size     # size of flattened features
+        self.fc1 = nn.Linear(self.out_feature, num_neurons)     # fully connected layer 1
+        self.fc2 = nn.Linear(num_neurons, 4)       # fully connected layer 2
+        self.fc3 = nn.Linear(num_neurons, 4)
+        self.p1 = drop_fc1      # dropout ratio for FC1
+
+        for i in range(1, num_conv_layers):
+            nn.init.kaiming_normal_(self.convs[i].weight, nonlinearity='relu')
+            if self.convs[i].bias is not None:
+                nn.init.constant_(self.convs[i].bias, 0)
+        nn.init.kaiming_normal_(self.fc1.weight, nonlinearity='relu')
+
+    def forward(self, x):
+        for i, conv_i in enumerate(self.convs):     # for each convolutional layer
+            if i == 2:      # add dropout if layer 2
+                x = F.relu(F.max_pool2d(self.conv2_drop(conv_i(x)), 2))     # conv_i, dropout, max-pooling, relu
+            else:
+                x = F.relu(F.max_pool2d(conv_i(x), 2))      # conv_i, max-pooling, relu
+
+        x = x.view(-1, self.out_feature)        # flatten tensor
+        x = F.relu(self.fc1(x))         # fc1, relu
+        x = F.dropout(x, p=self.p1, training=self.training)     # apply dropout after fc1 only when training
+        bb = self.fc3(x)        # for the bounding box
+        x = self.fc2(x)         # for the classifier
+
+        return F.log_softmax(x, dim=1), bb    # log(softmax(x))
 
 
 if __name__ == "__main__":
