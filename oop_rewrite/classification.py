@@ -19,8 +19,8 @@ import optuna
 
 class Setup:
     def __init__(self, image_path, anno_path):
-        self.image_path = image_path
-        self.anno_path = anno_path
+        self.image_path = Path(image_path)
+        self.anno_path = Path(anno_path)
         self.annotations = [os.path.join(dir_path, file) for dir_path, dir_name, files in os.walk(anno_path)
                             for file in files if file.endswith('.xml')]
         self.train_df = None
@@ -72,6 +72,9 @@ class Setup:
 
     def transforms(self, path, bb, is_transforms):
         return self.__transformsXY(path, bb, is_transforms)
+
+    def show_corner_bb(self, im, bb):
+        self.__show_corner_bb(im, bb)
 
     def __read_image(self, path):
         return cv2.cvtColor(cv2.imread(str(path)), cv2.COLOR_BGR2RGB)
@@ -187,10 +190,10 @@ class RoadData(Dataset):
     def __len__(self):
         return len(self.paths)
 
-    def __getitem__(self, key):
-        path = self.paths[key]
-        y_class = self.y[key]
-        x, y_bb = self.setup.transforms(path, self.bb[key], self.is_transforms)
+    def __getitem__(self, idx):
+        path = self.paths[idx]
+        y_class = self.y[idx]
+        x, y_bb = self.setup.transforms(path, self.bb[idx], self.is_transforms)
         x = self.__normalize(x)
         x = np.rollaxis(x, 2)
         return x, y_class, y_bb
@@ -201,21 +204,20 @@ class RoadData(Dataset):
 
 
 class RoadModel(nn.Module):
-    def __init__(self, trial, net):
+    def __init__(self, net):
         super(RoadModel, self).__init__()
         if net == "resnet34":
-            resnet = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
+            resnet = models.resnet34(pretrained=True)
             layers = list(resnet.children())[:8]
             self.features = nn.Sequential(*layers)
             self.classifier = nn.Sequential(nn.BatchNorm1d(512), nn.Linear(512, 4))
             self.bb = nn.Sequential(nn.BatchNorm1d(512), nn.Linear(512, 4))
         else:
-            resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+            resnet = models.resnet50(pretrained=True)
             layers = list(resnet.children())[:8]
             self.features = nn.Sequential(*layers)
             self.classifier = nn.Sequential(nn.BatchNorm1d(2048), nn.Linear(2048, 4))
             self.bb = nn.Sequential(nn.BatchNorm1d(2048), nn.Linear(2048, 4))
-
 
     def forward(self, x):
         x = self.features(x)
@@ -225,11 +227,11 @@ class RoadModel(nn.Module):
         return self.classifier(x), self.bb(x)
 
 
-if __name__ == "__main__":
-    setup = Setup('../images', '../annotations')
-    train_df = setup.generate_train_df()
-    print(train_df['class'].value_counts())
-    print(train_df.shape)
+# if __name__ == "__main__":
+#     setup = Setup('../images', '../annotations')
+#     train_df = setup.generate_train_df()
+#     print(train_df['class'].value_counts())
+#     print(train_df.shape)
 
-    print(train_df.head())
-    setup.test_mask(58)
+#     print(train_df.head())
+#     setup.test_mask(58)
