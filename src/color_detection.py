@@ -46,9 +46,10 @@ def detect_traffic_light_color(image, bounding_box):
                 return "Green"
             elif red > blue + tolerance and green > blue + tolerance:
                 return "Yellow"
-     
+    # Use color detection if no colored circles are detected 
     hsv = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2HSV)
 
+    # Range of Red, Yellow and Green 
     red_lower = np.array([0, 100, 100])
     red_upper = np.array([10, 255, 255])
     yellow_lower = np.array([15, 100, 100])  
