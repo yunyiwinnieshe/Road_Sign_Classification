@@ -113,7 +113,7 @@ class Setup:
     def __add_new_paths(self, im_size):
         new_paths = []
         new_bbs = []
-        train_path_resized = Path('../oop_rewrite/images_resized')
+        train_path_resized = Path('../images_resized')
         Path.mkdir(train_path_resized, exist_ok=True)
 
         for index, row in self.train_df.iterrows():
