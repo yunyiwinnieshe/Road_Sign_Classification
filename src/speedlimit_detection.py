@@ -88,3 +88,49 @@ def get_folder_speedlimit(folder_path):
     for image_file in folder_path.iterdir():
           detect_text = detect_speedlimit(image_file)
           print(detect_text)
+
+
+def detect_speedlimit_single(image_path, bounding_box):
+    # Load Image
+    image = cv2.imread(image_path)
+
+    # Checks if the image is successfully loaded
+    if image is None or image.size == 0:
+        print("Failed to load image")
+        return
+
+    # Adjusting Bounding Box Coordinates
+    x, y, w, h = bounding_box
+    y = max(0, y + 15)
+    x = max(0, x + 7)
+    h = min(image.shape[0], h - 15)
+    w = min(image.shape[1], w - 7)
+
+    # Cropping the Image
+    cropped_image = image[y:h, x:w]
+
+    # checks if the cropped image is valid
+    if cropped_image is None or cropped_image.size == 0:
+        print("Cropping resulted in an empty image for file")
+        return
+
+    # Convert to RGB and Display Cropped Image
+    cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB)
+    plt.imshow(cropped_image)
+    plt.title("Cropped Image")
+    plt.show()
+    # Convert to Grayscale
+    gray = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2GRAY)
+
+    # Apply Threshold and Display
+    thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)[1]
+    plt.imshow(thresh)
+    plt.title("After Threshold Image")
+    plt.show()
+
+    # Extract text using OCR
+    text = pytesseract.image_to_string(thresh, config=r'--oem 1 --psm 8 digits')
+    cleaned_text = "".join([t for t in text if t.isdigit()]).strip()
+    print(cleaned_text)
+    return cleaned_text
+
