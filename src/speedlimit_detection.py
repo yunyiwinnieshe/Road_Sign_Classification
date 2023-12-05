@@ -75,6 +75,7 @@ def detect_speedlimit(image_path):
     # Extract text using OCR
     text = pytesseract.image_to_string(thresh, config=r'--oem 1 --psm 8 digits')
     cleaned_text = "".join([t for t in text if t.isdigit()]).strip()
+    
     return cleaned_text
 
 # Iterate through a folder to get the speedlimit detection
@@ -85,4 +86,5 @@ def get_folder_speedlimit(folder_path):
         return
     # find the prediction on the speedlimit on the image
     for image_file in folder_path.iterdir():
-          detect_speedlimit(image_file)
+          detect_text = detect_speedlimit(image_file)
+          print(detect_text)
