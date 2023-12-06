@@ -71,9 +71,6 @@ def detect_traffic_light_color(image, bounding_box):
         return 'yellow'
     elif green_area > red_area and green_area > yellow_area:
         return 'green'
-    print(red_area)
-    print(green_area)
-    print(yellow_area)
     return "Unknown"
 
     
